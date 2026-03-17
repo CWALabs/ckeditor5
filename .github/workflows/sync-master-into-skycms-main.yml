@@ -53,6 +53,7 @@ jobs:
         if: steps.prepare.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          SYNC_NOTE: ${{ github.event.inputs.note }}
         run: |
           set -euo pipefail
           BRANCH="${{ steps.prepare.outputs.branch }}"
@@ -69,15 +70,18 @@ jobs:
             exit 0
           fi
 
-          BODY="Manual sync request from master into skycms/main.
+          BODY=$(cat <<EOF
+          Manual sync request from master into skycms/main.
 
-- Source: master
-- Target: skycms/main
-- Workflow: .github/workflows/sync-master-into-skycms-main.yml"
+          - Source: master
+          - Target: skycms/main
+          - Workflow: .github/workflows/sync-master-into-skycms-main.yml
+          EOF
+          )
 
-          if [ -n "${{ github.event.inputs.note }}" ]; then
+          if [ -n "$SYNC_NOTE" ]; then
             BODY="$BODY
-- Note: ${{ github.event.inputs.note }}"
+          - Note: $SYNC_NOTE"
           fi
 
           gh pr create \
