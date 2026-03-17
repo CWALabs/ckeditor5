@@ -68,14 +68,19 @@ jobs:
             exit 0
           fi
 
+          BODY=$(cat <<EOF
+          Automated upstream sync.
+
+          This PR merges upstream/master into this repository's master branch.
+
+          - Source: upstream/master
+          - Target: master
+          - Workflow: .github/workflows/sync-upstream-master.yml
+          EOF
+          )
+
           gh pr create \
             --base master \
             --head "$BRANCH" \
             --title "chore: sync upstream/master into master" \
-            --body "Automated upstream sync.
-
-This PR merges upstream/master into this repository's master branch.
-
-- Source: upstream/master
-- Target: master
-- Workflow: .github/workflows/sync-upstream-master.yml"
+            --body "$BODY"
