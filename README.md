@@ -27,6 +27,7 @@ CKEditor&nbsp;5 is a modern JavaScript rich-text editor with MVC architecture, c
 - [Contributing and project organization](#contributing-and-project-organization)
 	- [Ideas and discussions](#ideas-and-discussions)
 	- [Development](#development)
+	- [Fork maintenance (SkyCMS)](#fork-maintenance-skycms)
 	- [Reporting issues and feature requests](#reporting-issues-and-feature-requests)
 - [License](#license)
 
@@ -101,6 +102,34 @@ CKEditor&nbsp;5 is a modular, multi-package, [monorepo](https://en.wikipedia.org
 The [`ckeditor5`](https://github.com/ckeditor/ckeditor5) repository is the place that centralizes the development of CKEditor&nbsp;5. It bundles different packages into a single place, adding the necessary helper tools for the development workflow, like the builder and the test runner. [Basic information on how to set up the development environment](https://ckeditor.com/docs/ckeditor5/latest/framework/contributing/development-environment.html) can be found in the documentation.
 
 See the [official contributors' guide](https://ckeditor.com/docs/ckeditor5/latest/framework/contributing/contributing.html) to learn how to contribute your code to the project.
+
+### Fork maintenance (SkyCMS)
+
+This fork uses two long-lived branches:
+
+* `master` is the upstream-tracking baseline. Keep it aligned with `upstream/master`.
+* `skycms/main` is the SkyCMS customization branch. Merge upstream updates into this branch after syncing `master`.
+
+Use the sync script in this repository to keep both branches current:
+
+```powershell
+pwsh ./scripts/sync-fork.ps1
+```
+
+What the script does:
+
+1. Verifies the working tree is clean.
+2. Checks out `master`, fetches `upstream`, merges `upstream/master`, and pushes `origin/master`.
+3. Checks out `skycms/main`, merges `upstream/master`, and pushes `origin/skycms/main`.
+
+If a merge conflict occurs, resolve it locally, complete the merge, and push.
+
+Optional automation via GitHub Actions:
+
+1. `.github/workflows/sync-upstream-master.yml`
+	Runs on a schedule (weekly) and also supports manual runs. It opens or updates a PR from an automation branch into `master`.
+2. `.github/workflows/sync-master-into-skycms-main.yml`
+	Manual-only workflow. Run this when you are ready to review baseline changes in `skycms/main`. It opens or updates a PR into `skycms/main`.
 
 ### Reporting issues and feature requests
 

@@ -1,0 +1,81 @@
+name: Sync upstream/master into master
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-upstream-master:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream master
+        run: |
+          git remote add upstream https://github.com/ckeditor/ckeditor5.git
+          git fetch upstream master
+
+      - name: Prepare sync branch
+        id: prepare
+        run: |
+          set -euo pipefail
+          BRANCH="automation/upstream-master-sync"
+          git checkout -B "$BRANCH" origin/master
+
+          # Fail on merge conflicts so the maintainer can resolve intentionally.
+          git merge --no-ff --no-edit upstream/master
+
+          if git diff --quiet origin/master...HEAD; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git push --force-with-lease origin "$BRANCH"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update PR
+        if: steps.prepare.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${{ steps.prepare.outputs.branch }}"
+
+          PR_NUMBER=$(gh pr list \
+            --head "$BRANCH" \
+            --base master \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            echo "PR #$PR_NUMBER already open for $BRANCH"
+            exit 0
+          fi
+
+          gh pr create \
+            --base master \
+            --head "$BRANCH" \
+            --title "chore: sync upstream/master into master" \
+            --body "Automated upstream sync.
+
+This PR merges upstream/master into this repository's master branch.
+
+- Source: upstream/master
+- Target: master
+- Workflow: .github/workflows/sync-upstream-master.yml"

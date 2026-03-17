@@ -1,0 +1,87 @@
+name: Sync master into skycms/main (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: Optional note for this sync run
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-master-into-skycms-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch master and skycms/main
+        run: |
+          git fetch origin master skycms/main
+
+      - name: Prepare sync branch
+        id: prepare
+        run: |
+          set -euo pipefail
+          BRANCH="automation/master-into-skycms-main"
+          git checkout -B "$BRANCH" origin/skycms/main
+
+          # Bring latest baseline into customization branch via PR.
+          git merge --no-ff --no-edit origin/master
+
+          if git diff --quiet origin/skycms/main...HEAD; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git push --force-with-lease origin "$BRANCH"
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update PR
+        if: steps.prepare.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BRANCH="${{ steps.prepare.outputs.branch }}"
+
+          PR_NUMBER=$(gh pr list \
+            --head "$BRANCH" \
+            --base skycms/main \
+            --state open \
+            --json number \
+            --jq '.[0].number')
+
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            echo "PR #$PR_NUMBER already open for $BRANCH"
+            exit 0
+          fi
+
+          BODY="Manual sync request from master into skycms/main.
+
+- Source: master
+- Target: skycms/main
+- Workflow: .github/workflows/sync-master-into-skycms-main.yml"
+
+          if [ -n "${{ github.event.inputs.note }}" ]; then
+            BODY="$BODY
+- Note: ${{ github.event.inputs.note }}"
+          fi
+
+          gh pr create \
+            --base skycms/main \
+            --head "$BRANCH" \
+            --title "chore: sync master into skycms/main" \
+            --body "$BODY"
