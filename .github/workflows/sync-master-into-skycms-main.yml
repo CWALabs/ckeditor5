@@ -52,10 +52,13 @@ jobs:
       - name: Create or update PR
         if: steps.prepare.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.SYNC_PR_TOKEN }}
+          FALLBACK_GITHUB_TOKEN: ${{ github.token }}
           SYNC_NOTE: ${{ github.event.inputs.note }}
         run: |
           set -euo pipefail
+          : "${GH_TOKEN:=$FALLBACK_GITHUB_TOKEN}"
+          export GH_TOKEN
           BRANCH="${{ steps.prepare.outputs.branch }}"
 
           PR_NUMBER=$(gh pr list \
@@ -84,8 +87,14 @@ jobs:
           - Note: $SYNC_NOTE"
           fi
 
-          gh pr create \
+          if ! gh pr create \
             --base skycms/main \
             --head "$BRANCH" \
             --title "chore: sync master into skycms/main" \
-            --body "$BODY"
+            --body "$BODY"; then
+            echo "Pull request creation failed."
+            echo "If repository policy blocks github.token, either:"
+            echo "1. Enable 'Allow GitHub Actions to create and approve pull requests' in repository settings."
+            echo "2. Add a repository secret named SYNC_PR_TOKEN with permission to create pull requests."
+            exit 1
+          fi
